@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>🎣 Рыболовецкая Империя</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      font-family: Arial;
+      text-align: center;
+      background: url('https://i.imgur.com/4uFQ0fD.png ') no-repeat center center fixed;
+      background-size: cover;
+      color: #fff;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      font-size: 36px;
+      text-shadow: 2px 2px #000;
+    }
+    .game-container {
+      background: rgba(0, 0, 0, 0.5);
+      padding: 20px;
+      border-radius: 15px;
+      display: inline-block;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      margin: 10px;
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      background-color: #00796b;
+      color: white;
+    }
+    .shop-item {
+      margin: 10px auto;
+      border: 2px solid #004d40;
+      padding: 10px;
+      width: 300px;
+      background-color: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+    }
+    .log {
+      margin-top: 20px;
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid #ccc;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 10px;
+    }
+    .click-effect {
+      position: absolute;
+      color: gold;
+      font-weight: bold;
+      animation: pop 1s ease-out;
+      pointer-events: none;
+      z-index: 100;
+    }
+    @keyframes pop {
+      0% { transform: scale(1); opacity: 1; }
+      100% { transform: scale(2); opacity: 0; }
+    }
+    .boat {
+      animation: boatMove 10s linear infinite;
+      width: 100px;
+      margin: 20px auto;
+    }
+    @keyframes boatMove {
+      0% { transform: translateX(-100px); }
+      100% { transform: translateX(100vw); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="game-container">
+  <h1>🎣 Рыболовецкая Империя</h1>
+  <img src="https://i.imgur.com/tcZUvVY.png " alt="Лодка" class="boat" />
+
+  <p><strong>Выловлено рыбы:</strong> <span id="fishCount">0</span></p>
+  <button onclick="catchFish(event)">Поймать рыбу 🐟</button>
+
+  <div class="shop">
+    <h2>🛒 Магазин улучшений</h2>
+    <div class="shop-item">
+      <p>Улучшенная сеть (+1 к добыче за клик)</p>
+      <button onclick="buyUpgrade('net')">Купить за <span id="netCost">10</span> рыб</button>
+    </div>
+    <div class="shop-item">
+      <p>Лодка для пассивного дохода</p>
+      <button onclick="buyUpgrade('boat')">Купить за <span id="boatCost">50</span> рыб</button>
+    </div>
+    <div class="shop-item">
+      <p>Нанять помощника</p>
+      <button onclick="buyUpgrade('crew')">Купить за <span id="crewCost">100</span> рыб</button>
+    </div>
+  </div>
+
+  <p><strong>Уровень сети:</strong> <span id="upgradeLevel">1</span></p>
+  <p><strong>Пассивный доход:</strong> <span id="passiveIncome">0</span> рыб/сек</p>
+  <p><strong>Уровень компании:</strong> <span id="companyLevel">1</span></p>
+
+  <div class="quests">
+    <h2>🎯 Задания</h2>
+    <div class="quest" id="quest1">
+      <p>Поймайте 50 рыб за 1 минуту</p>
+      <button onclick="claimQuest(1)">Получить награду +100 рыб</button>
+    </div>
+  </div>
+
+  <div class="log" id="gameLog"></div>
+</div>
+
+<!-- Звуки -->
+<audio id="catchSound" src="https://www.soundjay.com/button/sounds/button-16.mp3 " preload="auto"></audio>
+<audio id="rewardSound" src="https://www.soundjay.com/human/sounds/applause-8.mp3 " preload="auto"></audio>
+<audio id="rareFishSound" src="https://www.soundjay.com/human/sounds/laugh-27.mp3 " preload="auto"></audio>
+
+<script>
+  // Telegram WebApp API
+  const tg = window.Telegram?.WebApp;
+  if (tg) {
+    tg.ready();
+    tg.expand();
+  }
+
+  // Игровые переменные
+  let fish = parseInt(localStorage.getItem("fish")) || 0;
+  let catchPower = parseInt(localStorage.getItem("catchPower")) || 1;
+  let upgradeLevel = parseInt(localStorage.getItem("upgradeLevel")) || 1;
+  let passiveIncome = parseInt(localStorage.getItem("passiveIncome")) || 0;
+  let boatCount = parseInt(localStorage.getItem("boatCount")) || 0;
+  let crewCount = parseInt(localStorage.getItem("crewCount")) || 0;
+
+  let netCost = parseInt(localStorage.getItem("netCost")) || 10;
+  let boatCost = parseInt(localStorage.getItem("boatCost")) || 50;
+  let crewCost = parseInt(localStorage.getItem("crewCost")) || 100;
+
+  function updateDisplay() {
+    document.getElementById('fishCount').textContent = fish;
+    document.getElementById('upgradeLevel').textContent = upgradeLevel;
+    document.getElementById('passiveIncome').textContent = passiveIncome;
+    document.getElementById('companyLevel').textContent = Math.floor(fish / 100) + 1;
+    document.getElementById('netCost').textContent = netCost;
+    document.getElementById('boatCost').textContent = boatCost;
+    document.getElementById('crewCost').textContent = crewCost;
+  }
+
+  function catchFish(e) {
+    const isRare = Math.random() < 0.1;
+
+    if (isRare) {
+      fish += 10;
+      playSound("rareFishSound");
+      logAction("🔥 Ух ты! Вы поймали Огромного минтая! +10 рыб");
+    } else {
+      fish += catchPower;
+      playSound("catchSound");
+      logAction(`Вы поймали ${catchPower} рыбы.`);
+    }
+
+    updateDisplay();
+
+    const effect = document.createElement("div");
+    effect.className = "click-effect";
+    effect.textContent = isRare ? "+10 🐟" : "+" + catchPower;
+    effect.style.left = e.pageX + "px";
+    effect.style.top = e.pageY + "px";
+    document.body.appendChild(effect);
+    setTimeout(() => effect.remove(), 1000);
+
+    saveGame();
+  }
+
+  function buyUpgrade(type) {
+    if (type === 'net' && fish >= netCost) {
+      fish -= netCost;
+      catchPower += 1;
+      upgradeLevel += 1;
+      netCost = Math.floor(netCost * 1.5);
+      logAction("Сеть улучшена! Теперь вы ловите больше рыбы.");
+    } else if (type === 'boat' && fish >= boatCost) {
+      fish -= boatCost;
+      boatCount += 1;
+      passiveIncome += 1;
+      boatCost = Math.floor(boatCost * 1.5);
+      logAction("Вы купили новую лодку!");
+    } else if (type === 'crew' && fish >= crewCost) {
+      fish -= crewCost;
+      crewCount += 1;
+      passiveIncome += 2;
+      crewCost = Math.floor(crewCost * 1.5);
+      logAction("Вы наняли нового помощника!");
+    } else {
+      alert("Недостаточно рыбы!");
+    }
+    updateDisplay();
+    saveGame();
+  }
+
+  function claimQuest(id) {
+    if (id === 1 && fish >= 50) {
+      fish += 100;
+      playSound("rewardSound");
+      logAction("Задание выполнено! Вы получили 100 рыб.");
+      document.getElementById("quest1").innerHTML = "<p>✔ Завершено!</p>";
+      updateDisplay();
+      saveGame();
+    } else {
+      alert("Вы не выполнили задание!");
+    }
+  }
+
+  function logAction(message) {
+    const log = document.createElement("div");
+    log.textContent = message;
+    document.getElementById("gameLog").prepend(log);
+  }
+
+  function saveGame() {
+    localStorage.setItem("fish", fish);
+    localStorage.setItem("catchPower", catchPower);
+    localStorage.setItem("upgradeLevel", upgradeLevel);
+    localStorage.setItem("passiveIncome", passiveIncome);
+    localStorage.setItem("boatCount", boatCount);
+    localStorage.setItem("crewCount", crewCount);
+    localStorage.setItem("netCost", netCost);
+    localStorage.setItem("boatCost", boatCost);
+    localStorage.setItem("crewCost", crewCost);
+  }
+
+  function passiveIncomeTick() {
+    fish += passiveIncome;
+    updateDisplay();
+    if (passiveIncome > 0)
+      logAction(`+${passiveIncome} рыб от пассивного дохода`);
+    saveGame();
+  }
+
+  setInterval(passiveIncomeTick, 1000);
+
+  function playSound(id) {
+    const sound = document.getElementById(id);
+    if (sound) {
+      sound.currentTime = 0;
+      sound.play();
+    }
+  }
+
+  updateDisplay();
+</script>
+
+</body>
+</html>
